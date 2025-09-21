@@ -1,63 +1,56 @@
-"""
-AWS Glue ETL Job Script for Athena Insights Automation
-Reads raw data from S3, cleans and transforms it, partitions data, 
-converts to Parquet format, and writes to S3 for Athena queries.
-"""
-
-import sys
-from awsglue.transforms import *
-from awsglue.utils import getResolvedOptions
-from pyspark.context import SparkContext
 from awsglue.context import GlueContext
-from awsglue.job import Job
-from awsglue.dynamicframe import DynamicFrame
-from pyspark.sql import functions as F
-from pyspark.sql.types import *
+from pyspark.context import SparkContext
+from pyspark.sql.functions import (
+    col, to_date, year, month, dayofmonth, when, trim
+)
 
-# Get job parameters
-args = getResolvedOptions(sys.argv, [
-    'JOB_NAME',
-    'source_bucket',
-    'target_bucket',
-    'database_name'
-])
-
-# Initialize Glue context
+# Initialize GlueContext and SparkSession
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
-job = Job(glueContext)
-job.init(args['JOB_NAME'], args)
 
-# Read raw data from Glue catalog
-source_df = glueContext.create_dynamic_frame.from_catalog(
-    database=args['database_name'],
-    table_name="raw_data_table"
+# Read from Glue Data Catalog (update these names)
+database_name = "retail-sales-db"
+table_name = "raw_zone"
+
+# Read as DynamicFrame from Data Catalog
+dyf = glueContext.create_dynamic_frame.from_catalog(
+    database=database_name,
+    table_name=table_name
 )
 
-# Convert to Spark DataFrame for transformations
-spark_df = source_df.toDF()
+# Convert to Spark DataFrame
+df = dyf.toDF()
 
-# Data cleaning and transformation
-cleaned_df = spark_df \
-    .dropDuplicates() \
-    .filter(F.col("id").isNotNull()) \
-    .withColumn("processed_date", F.current_date()) \
-    .withColumn("year", F.year(F.col("date_column"))) \
-    .withColumn("month", F.month(F.col("date_column")))
+# Clean and transform
+df = df.select([trim(col(c)).alias(c.strip().lower().replace(" ", "_")) for c in df.columns])
 
-# Convert back to DynamicFrame
-cleaned_dynamic_frame = DynamicFrame.fromDF(cleaned_df, glueContext, "cleaned_data")
+# Convert date column (date only: yyyy-MM-dd)
+df = df.withColumn("date", to_date(col("date"), "yyyy-MM-dd"))
 
-# Write to S3 in Parquet format with partitioning
-glueContext.write_dynamic_frame.from_options(
-    frame=cleaned_dynamic_frame,
-    connection_type="s3",
-    connection_options={
-        "path": f"s3://{args['target_bucket']}/parquet-data/",
-        "partitionKeys": ["year", "month"]
-    },
-    format="parquet"
-)
+# Drop rows with nulls in key columns
+df = df.na.drop(subset=["transaction_id", "date", "customer_id", "product_category", "total_amount"])
 
-job.commit()
+# Fix negative / zero values
+df = df.withColumn("quantity", when(col("quantity") <= 0, None).otherwise(col("quantity")))
+df = df.withColumn("price_per_unit", when(col("price_per_unit") <= 0, None).otherwise(col("price_per_unit")))
+df = df.withColumn("total_amount", when(col("total_amount") <= 0, None).otherwise(col("total_amount")))
+
+# Remove duplicates
+df = df.dropDuplicates(["transaction_id"])
+
+# Add partitioning columns
+df = df.withColumn("year", year(col("date"))) \
+       .withColumn("month", month(col("date"))) \
+       .withColumn("day", dayofmonth(col("date")))
+
+# Debug - show row count and partition columns before writing
+print(f"Row count before write: {df.count()}")
+df.select("year", "month", "day").show(5)
+df.printSchema()
+
+# Write to Parquet, partitioned by year/month/day (update S3 path)
+output_path = "s3://retailsalespipelinebucket/processed-zone/"
+df.write.mode("append").partitionBy("year", "month", "day").parquet(output_path)
+
+print("✅ ETL Job Completed Successfully")
