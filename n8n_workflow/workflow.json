@@ -1,0 +1,160 @@
+{
+  "id": "athena-insights-workflow",
+  "name": "Athena Insights Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Stakeholder Data Request",
+        "formDescription": "Submit your data request in natural language",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Data Request",
+              "fieldType": "text",
+              "requiredField": true,
+              "fieldName": "request_text"
+            },
+            {
+              "fieldLabel": "Stakeholder Email",
+              "fieldType": "email",
+              "requiredField": true,
+              "fieldName": "stakeholder_email"
+            }
+          ]
+        }
+      },
+      "id": "form-trigger",
+      "name": "Stakeholder Request Form",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "prompt": "Convert this stakeholder request to a valid SQL query for Amazon Athena. Use the database schema provided and ensure the query is optimized for Parquet data.\n\nSchema Context:\n- Database: insights_db\n- Main table: sales_data\n- Columns: date, region, product_category, sales_amount, customer_id, order_id\n- Partitioned by: year, month\n\nStakeholder Request: {{$node['Stakeholder Request Form'].json['request_text']}}\n\nReturn only the SQL query without explanations.",
+        "options": {}
+      },
+      "id": "ai-sql-generator",
+      "name": "AI: Request → SQL",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionName": "athena-query-runner",
+        "payload": {
+          "sql_query": "={{$node['AI: Request → SQL'].json['choices'][0]['message']['content']}}",
+          "database": "insights_db",
+          "output_location": "s3://athena-results-bucket/queries/"
+        }
+      },
+      "id": "lambda-athena-executor",
+      "name": "Lambda: Execute Athena Query",
+      "type": "n8n-nodes-base.awsLambda",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "aws": {
+          "id": "aws-credentials",
+          "name": "AWS Credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "prompt": "Analyze the following Athena query results and create a business-friendly summary with key insights. Format it as an executive summary suitable for email.\n\nOriginal Request: {{$node['Stakeholder Request Form'].json['request_text']}}\n\nQuery Results:\n{{JSON.stringify($node['Lambda: Execute Athena Query'].json['body']['results'], null, 2)}}\n\nProvide:\n1. Executive Summary\n2. Key Findings\n3. Actionable Insights\n4. Data Quality Notes (if applicable)",
+        "options": {}
+      },
+      "id": "ai-insight-generator",
+      "name": "AI: Summarize Results",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Stakeholder Request Form'].json['stakeholder_email']}}",
+        "subject": "Data Insights: {{$node['Stakeholder Request Form'].json['request_text']}}",
+        "emailFormat": "html",
+        "message": "<h2>Data Insights Report</h2>\n\n<p><strong>Request:</strong> {{$node['Stakeholder Request Form'].json['request_text']}}</p>\n\n<div style=\"background-color: #f5f5f5; padding: 15px; border-radius: 5px;\">\n{{$node['AI: Summarize Results'].json['choices'][0]['message']['content']}}\n</div>\n\n<hr>\n\n<p><em>Generated automatically via Athena Insights Automation</em></p>\n<p><em>Query executed on: {{new Date().toISOString()}}</em></p>"
+      },
+      "id": "gmail-sender",
+      "name": "Gmail: Send Insights",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credentials",
+          "name": "Gmail OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Stakeholder Request Form": {
+      "main": [
+        [
+          {
+            "node": "AI: Request → SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Request → SQL": {
+      "main": [
+        [
+          {
+            "node": "Lambda: Execute Athena Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lambda: Execute Athena Query": {
+      "main": [
+        [
+          {
+            "node": "AI: Summarize Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Summarize Results": {
+      "main": [
+        [
+          {
+            "node": "Gmail: Send Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1.0.0"
+}
