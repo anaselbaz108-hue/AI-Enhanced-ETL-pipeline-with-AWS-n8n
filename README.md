@@ -46,7 +46,35 @@ graph TD
 
 ## Project Folder Structure
 
-See [Project Folder Structure](#project-folder-structure) above.
+```
+@athena_insights_auto/
+├── etl/                                    # ETL Pipeline Components
+│   ├── crawler_raw/                       # Raw data crawler configuration
+│   │   └── README.md                      # Raw crawler setup guide
+│   ├── glue_job/                          # Glue ETL job scripts
+│   │   ├── job_script.py                  # Main ETL transformation script
+│   │   └── README.md                      # Job configuration guide
+│   └── crawler_parquet/                   # Parquet data crawler configuration
+│       └── README.md                      # Parquet crawler setup guide
+│
+├── lambda/                                 # AWS Lambda Functions
+│   ├── athena-query-runner/               # Athena query execution function
+│   │   ├── lambda_function.py             # Main Lambda handler
+│   │   └── requirements.txt               # Python dependencies
+│   └── docs/                              # Lambda documentation
+│       └── lambda_setup.md                # Lambda deployment guide
+│
+├── n8n_workflow/                          # n8n Workflow Automation
+│   ├── workflow.json                      # Complete n8n workflow definition
+│   └── docs/                              # n8n documentation
+│       └── n8n_steps.md                   # Workflow setup guide
+│
+├── schema/                                # Data Schema Documentation
+│   └── dataset_schema.md                  # Database schema for AI SQL generation
+│
+├── PROJECT_STRUCTURE.md                   # Detailed project structure guide
+└── README.md                              # Main project documentation
+```
 
 ---
 
