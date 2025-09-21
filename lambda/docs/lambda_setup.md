@@ -128,9 +128,9 @@ Create a test event:
 
 ```json
 {
-    "sql_query": "SELECT COUNT(*) as total_records FROM sales_data WHERE year = 2024",
-    "database": "insights_db",
-    "output_location": "s3://your-athena-results-bucket/test-queries/"
+    "sql_query": "SELECT COUNT(*) as total_records FROM processed_zone WHERE year = 2024",
+    "database": "retail-sales-db",
+    "output_location": "s3://retailsalespipelinebucket/athena-results/"
 }
 ```
 

@@ -3,7 +3,7 @@ import json
 import time
 
 def lambda_handler(event, context):
-    # Input: {"query": "...", "db": "...", "output": "s3://your-bucket/query-results/"}
+    # Input: {"query": "...", "db": "...", "output": "s3://retailsalespipelinebucket/athena-results/"}
     query = event.get("query")
     db = event.get("db")
     output = event.get("output") # S3 bucket URI for query results

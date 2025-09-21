@@ -192,6 +192,6 @@ Monitor these metrics:
 
 1. **Data Quality**: Ensure consistent schema across files
 2. **File Naming**: Use consistent naming conventions
-3. **Partitioning**: Organize files by date/region for better performance
+3. **Partitioning**: Organize files by date for better performance
 4. **Monitoring**: Set up CloudWatch alarms for crawler failures
 5. **Cost Optimization**: Schedule crawlers during off-peak hours

@@ -33,9 +33,9 @@ Form Trigger → AI SQL Generation → Lambda Athena Query → AI Insight Summar
 - **Stakeholder Email** (Email, Required): Recipient for insights
 
 **Example Requests**:
-- "Show me last week's sales by region"
-- "What are our top 5 products by revenue this quarter?"
-- "Customer retention analysis for the past 6 months"
+- "Show me sales by gender for this month"
+- "What are our top 5 product categories by revenue this quarter?"
+- "Average customer age by product category"
 
 ### 2. AI: Request → SQL Node
 
@@ -187,11 +187,11 @@ Email Template:
 
 1. **Simple Query Test**
    - Request: "Total sales for this month"
-   - Expected: SQL with current month filter
+   - Expected: SQL with current month filter using retail sales schema
 
 2. **Complex Analysis Test**
-   - Request: "Top performing regions with growth rate"
-   - Expected: Multi-table join with calculations
+   - Request: "Gender-based purchasing patterns by product category"
+   - Expected: SQL with aggregations on gender and product_category
 
 3. **Error Handling Test**
    - Request: Invalid/ambiguous request
@@ -211,7 +211,7 @@ Create test webhook to simulate form submissions:
 
 ```json
 {
-  "request_text": "Show me sales by region for last quarter",
+  "request_text": "Show me sales by product category for last month",
   "stakeholder_email": "test@example.com"
 }
 ```

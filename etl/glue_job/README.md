@@ -8,7 +8,7 @@ This directory contains the AWS Glue ETL job script that transforms raw data int
 
 ### Basic Settings
 
-- **Job Name**: `sales-data-etl-job`
+- **Job Name**: `retail-sales-etl-job`
 - **Job Type**: `Python Shell` or `Spark`
 - **Glue Version**: `4.0`
 - **Python Version**: `3.9`
@@ -85,9 +85,9 @@ The job performs the following transformations:
 ```bash
 # Create Glue job
 aws glue create-job \
-    --name sales-data-etl-job \
+    --name retail-sales-etl-job \
     --role arn:aws:iam::YOUR_ACCOUNT_ID:role/GlueServiceRole \
-    --command ScriptLocation=s3://your-scripts-bucket/job_script.py,Name=glueetl \
+    --command ScriptLocation=s3://retailsalespipelinebucket/scripts/job_script.py,Name=glueetl \
     --default-arguments '{
         "--source_bucket":"retailsalespipelinebucket",
         "--target_bucket":"retailsalespipelinebucket",
@@ -100,13 +100,13 @@ aws glue create-job \
 ### Terraform
 
 ```hcl
-resource "aws_glue_job" "sales_data_etl" {
-  name         = "sales-data-etl-job"
+resource "aws_glue_job" "retail_sales_etl" {
+  name         = "retail-sales-etl-job"
   role_arn     = aws_iam_role.glue_role.arn
   glue_version = "4.0"
 
   command {
-    script_location = "s3://your-scripts-bucket/job_script.py"
+    script_location = "s3://retailsalespipelinebucket/scripts/job_script.py"
     python_version  = "3"
   }
 
