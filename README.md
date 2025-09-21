@@ -33,7 +33,7 @@ graph TD
     A[Raw Data in S3] --> B[Raw Crawler]
     B --> C[Glue ETL Job: Clean, Partition, Parquet]
     C --> D[Parquet Data in S3]
-    D --> E[Parquet Crawler (Glue Data Catalog)]
+    D --> E[Parquet Crawler]
     E --> F[Athena Table]
     F --> G[n8n Workflow triggers with a form get the stakeholder request]
     G --> H[AI Node 1: Request→SQL]
@@ -145,5 +145,4 @@ See full workflow in `n8n_workflow/docs/n8n_steps.md`.
 
 ## Contributors
 
-- [Your Name]
-- [Other Contributors]
+- ANAS ELBAZ
