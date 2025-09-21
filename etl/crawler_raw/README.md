@@ -14,7 +14,7 @@ This crawler is configured to scan the raw data S3 bucket and create a table in 
 
 ### Data Source
 
-- **S3 Path**: `s3://your-raw-data-bucket/sales/`
+- **S3 Path**: `s3://retailsalespipelinebucket/raw-zone/`
 - **Include Path**: Include all subdirectories
 - **Exclude Patterns**: 
   - `*.tmp`
@@ -23,7 +23,7 @@ This crawler is configured to scan the raw data S3 bucket and create a table in 
 
 ### Crawler Output
 
-- **Database**: `raw_insights_db`
+- **Database**: `retail-sales-db`
 - **Table Prefix**: `raw_`
 - **Configuration**: 
   - Update table schema: `Update the table definition in the data catalog`
@@ -60,7 +60,7 @@ This crawler is configured to scan the raw data S3 bucket and create a table in 
                 "s3:PutObject"
             ],
             "Resource": [
-                "arn:aws:s3:::your-raw-data-bucket/*"
+                "arn:aws:s3:::retailsalespipelinebucket/*"
             ]
         },
         {
@@ -88,19 +88,20 @@ This crawler is configured to scan the raw data S3 bucket and create a table in 
 ### Sample Data Structure
 
 ```csv
-order_id,customer_id,date,region,product_category,product_name,sales_amount,quantity,discount_percent,sales_rep_id
-ORD-2024-001234,CUST-12345,2024-01-15,North America,Electronics,iPhone 15,1299.99,1,0.0,REP-789
-ORD-2024-001235,CUST-67890,2024-01-15,Europe,Clothing,Nike Shoes,129.99,2,10.0,REP-456
+transaction_id,date,customer_id,gender,age,product_category,quantity,price_per_unit,total_amount
+TXN-2024-001234,2024-01-15,CUST-12345,Male,28,Electronics,1,299.99,299.99
+TXN-2024-001235,2024-01-15,CUST-67890,Female,34,Clothing,2,49.99,99.98
+TXN-2024-001236,2024-01-16,CUST-11111,Male,42,Beauty,1,25.50,25.50
 ```
 
 ### File Organization
 
 ```
-s3://your-raw-data-bucket/sales/
+s3://retailsalespipelinebucket/raw-zone/
 ├── 2024/
 │   ├── 01/
-│   │   ├── sales_20240101.csv
-│   │   ├── sales_20240102.csv
+│   │   ├── transactions_20240101.csv
+│   │   ├── transactions_20240102.csv
 │   │   └── ...
 │   ├── 02/
 │   └── ...
@@ -117,8 +118,8 @@ s3://your-raw-data-bucket/sales/
 aws glue create-crawler \
     --name raw-data-crawler \
     --role arn:aws:iam::YOUR_ACCOUNT_ID:role/AWSGlueServiceRole-RawDataCrawler \
-    --database-name raw_insights_db \
-    --targets S3Targets=[{Path=s3://your-raw-data-bucket/sales/}] \
+    --database-name retail-sales-db \
+    --targets S3Targets=[{Path=s3://retailsalespipelinebucket/raw-zone/}] \
     --table-prefix raw_ \
     --schedule ScheduleExpression="cron(0 2 * * ? *)"
 
@@ -133,12 +134,12 @@ aws glue get-crawler --name raw-data-crawler
 
 ```hcl
 resource "aws_glue_crawler" "raw_data_crawler" {
-  database_name = "raw_insights_db"
+  database_name = "retail-sales-db"
   name          = "raw-data-crawler"
   role          = aws_iam_role.glue_crawler_role.arn
 
   s3_target {
-    path = "s3://your-raw-data-bucket/sales/"
+    path = "s3://retailsalespipelinebucket/raw-zone/"
   }
 
   schedule = "cron(0 2 * * ? *)"
@@ -191,6 +192,6 @@ Monitor these metrics:
 
 1. **Data Quality**: Ensure consistent schema across files
 2. **File Naming**: Use consistent naming conventions
-3. **Partitioning**: Organize files by date/region for better performance
+3. **Partitioning**: Organize files by date for better performance
 4. **Monitoring**: Set up CloudWatch alarms for crawler failures
 5. **Cost Optimization**: Schedule crawlers during off-peak hours

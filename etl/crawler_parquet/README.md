@@ -14,7 +14,7 @@ This crawler scans the processed Parquet data in S3 and creates/updates the tabl
 
 ### Data Source
 
-- **S3 Path**: `s3://your-processed-data-bucket/parquet-data/`
+- **S3 Path**: `s3://retailsalespipelinebucket/processed-zone/`
 - **Include Path**: Include all subdirectories
 - **Exclude Patterns**: 
   - `*_metadata`
@@ -23,8 +23,8 @@ This crawler scans the processed Parquet data in S3 and creates/updates the tabl
 
 ### Crawler Output
 
-- **Database**: `insights_db`
-- **Table Name**: `sales_data` (automatically detected)
+- **Database**: `retail-sales-db`
+- **Table Name**: `processed_zone` (automatically detected)
 - **Configuration**: 
   - Update table schema: `Update the table definition in the data catalog`
   - Object deletion: `Delete tables and partitions from catalog`
@@ -61,7 +61,7 @@ This crawler scans the processed Parquet data in S3 and creates/updates the tabl
                 "s3:PutObject"
             ],
             "Resource": [
-                "arn:aws:s3:::your-processed-data-bucket/*"
+                "arn:aws:s3:::retailsalespipelinebucket/*"
             ]
         },
         {
@@ -82,11 +82,13 @@ This crawler scans the processed Parquet data in S3 and creates/updates the tabl
 ### File Organization
 
 ```
-s3://your-processed-data-bucket/parquet-data/
+s3://retailsalespipelinebucket/processed-zone/
 ├── year=2024/
 │   ├── month=01/
-│   │   ├── part-00000-<uuid>.snappy.parquet
-│   │   ├── part-00001-<uuid>.snappy.parquet
+│   │   ├── day=01/
+│   │   │   ├── part-00000-<uuid>.snappy.parquet
+│   │   │   └── part-00001-<uuid>.snappy.parquet
+│   │   ├── day=02/
 │   │   └── ...
 │   ├── month=02/
 │   └── ...
@@ -98,33 +100,32 @@ s3://your-processed-data-bucket/parquet-data/
 
 The crawler will automatically detect partitions based on directory structure:
 - **year**: Integer partition key
-- **month**: Integer partition key
+- **month**: Integer partition key  
+- **day**: Integer partition key
 
 ### Schema Detection
 
 The crawler will detect the following schema from Parquet metadata:
 
 ```sql
-CREATE EXTERNAL TABLE `sales_data`(
-  `order_id` string,
-  `customer_id` string,
+CREATE EXTERNAL TABLE `processed_zone`(
+  `transaction_id` string,
   `date` date,
-  `region` string,
+  `customer_id` string,
+  `gender` string,
+  `age` int,
   `product_category` string,
-  `product_name` string,
-  `sales_amount` decimal(10,2),
   `quantity` int,
-  `discount_percent` decimal(5,2),
-  `sales_rep_id` string,
-  `processed_date` date,
-  `data_source` string
+  `price_per_unit` decimal(10,2),
+  `total_amount` decimal(10,2)
 ) 
 PARTITIONED BY (
   `year` int,
-  `month` int
+  `month` int,
+  `day` int
 )
 STORED AS PARQUET
-LOCATION 's3://your-processed-data-bucket/parquet-data/'
+LOCATION 's3://retailsalespipelinebucket/processed-zone/'
 ```
 
 ## Crawler Execution
@@ -134,14 +135,14 @@ LOCATION 's3://your-processed-data-bucket/parquet-data/'
 ```bash
 # Create database first
 aws glue create-database \
-    --database-input Name=insights_db,Description="Database for processed insights data"
+    --database-input Name=retail-sales-db,Description="Database for retail sales data"
 
 # Create crawler
 aws glue create-crawler \
     --name parquet-data-crawler \
     --role arn:aws:iam::YOUR_ACCOUNT_ID:role/AWSGlueServiceRole-ParquetDataCrawler \
-    --database-name insights_db \
-    --targets S3Targets=[{Path=s3://your-processed-data-bucket/parquet-data/}] \
+    --database-name retail-sales-db \
+    --targets S3Targets=[{Path=s3://retailsalespipelinebucket/processed-zone/}] \
     --schedule ScheduleExpression="cron(0 3 * * ? *)"
 
 # Start crawler
@@ -151,24 +152,24 @@ aws glue start-crawler --name parquet-data-crawler
 aws glue get-crawler --name parquet-data-crawler
 
 # Get table information
-aws glue get-table --database-name insights_db --name sales_data
+aws glue get-table --database-name retail-sales-db --name processed_zone
 ```
 
 ### Terraform Configuration
 
 ```hcl
-resource "aws_glue_database" "insights_db" {
-  name        = "insights_db"
-  description = "Database for processed insights data"
+resource "aws_glue_database" "retail_sales_db" {
+  name        = "retail-sales-db"
+  description = "Database for retail sales data"
 }
 
 resource "aws_glue_crawler" "parquet_data_crawler" {
-  database_name = aws_glue_database.insights_db.name
+  database_name = aws_glue_database.retail_sales_db.name
   name          = "parquet-data-crawler"
   role          = aws_iam_role.glue_crawler_role.arn
 
   s3_target {
-    path = "s3://your-processed-data-bucket/parquet-data/"
+    path = "s3://retailsalespipelinebucket/processed-zone/"
   }
 
   schedule = "cron(0 3 * * ? *)"
@@ -209,16 +210,16 @@ The crawler automatically:
 ```bash
 # Add specific partition
 aws glue create-partition \
-    --database-name insights_db \
-    --table-name sales_data \
-    --partition-input Values=["2024","01"],StorageDescriptor='{...}'
+    --database-name retail-sales-db \
+    --table-name processed_zone \
+    --partition-input Values=["2024","01","15"],StorageDescriptor='{...}'
 
 # Update partition
 aws glue update-partition \
-    --database-name insights_db \
-    --table-name sales_data \
-    --partition-value-list 2024 01 \
-    --partition-input Values=["2024","01"],StorageDescriptor='{...}'
+    --database-name retail-sales-db \
+    --table-name processed_zone \
+    --partition-value-list 2024 01 15 \
+    --partition-input Values=["2024","01","15"],StorageDescriptor='{...}'
 ```
 
 ## Athena Integration
@@ -229,18 +230,19 @@ After crawler execution, data is available in Athena:
 
 ```sql
 -- Basic query
-SELECT region, SUM(sales_amount) as total_sales
-FROM insights_db.sales_data
+SELECT product_category, SUM(total_amount) as total_sales
+FROM retail_sales_db.processed_zone
 WHERE year = 2024 AND month = 1
-GROUP BY region;
+GROUP BY product_category;
 
--- Partition pruning example
-SELECT COUNT(*) 
-FROM insights_db.sales_data
-WHERE year = 2024 AND month BETWEEN 1 AND 3;
+-- Gender-based analysis with partition pruning
+SELECT gender, COUNT(*) as transactions, SUM(total_amount) as revenue
+FROM retail_sales_db.processed_zone
+WHERE year = 2024 AND month BETWEEN 1 AND 3
+GROUP BY gender;
 
 -- Show partitions
-SHOW PARTITIONS insights_db.sales_data;
+SHOW PARTITIONS retail_sales_db.processed_zone;
 ```
 
 ### Performance Optimization
@@ -292,16 +294,17 @@ Monitor:
 Create saved queries in Athena for common patterns:
 
 ```sql
--- Monthly sales summary
+-- Monthly sales summary by demographics
 SELECT 
     year,
     month,
-    region,
+    gender,
     product_category,
-    SUM(sales_amount) as revenue,
-    COUNT(*) as transaction_count
-FROM insights_db.sales_data
+    SUM(total_amount) as revenue,
+    COUNT(*) as transaction_count,
+    AVG(age) as avg_customer_age
+FROM retail_sales_db.processed_zone
 WHERE year = ${year} AND month = ${month}
-GROUP BY year, month, region, product_category
+GROUP BY year, month, gender, product_category
 ORDER BY revenue DESC;
 ```

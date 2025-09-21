@@ -82,21 +82,21 @@ graph TD
 
 ### Step 1: Raw Data Crawler
 
-- Configure a Glue Crawler (`etl/crawler_raw/`) to scan your raw S3 data bucket.
-- Creates a table in the Glue Data Catalog for your raw dataset.
+- Configure a Glue Crawler (`etl/crawler_raw/`) to scan your raw S3 data in the `raw-zone/` folder.
+- Creates a table in the Glue Data Catalog for your raw retail sales dataset.
 
 ### Step 2: Glue ETL Job (Cleaning, Partitioning, Parquet)
 
 - Write a Glue job (`etl/glue_job/job_script.py`) to:
-    - Read raw data from S3
-    - Clean and transform data
-    - Partition data as needed (e.g., by date/region)
-    - Convert to Parquet format
-    - Write cleaned, partitioned Parquet files to another S3 bucket
+    - Read raw transaction data from S3 `raw-zone/` folder
+    - Clean and transform data (remove duplicates, handle null values)
+    - Extract date components for partitioning (year, month, day)
+    - Convert to Parquet format with Snappy compression
+    - Write cleaned, partitioned Parquet files to `processed-zone/` folder
 
 ### Step 3: Parquet Data Crawler
 
-- Configure a second Glue Crawler (`etl/crawler_parquet/`) to scan the Parquet S3 bucket.
+- Configure a second Glue Crawler (`etl/crawler_parquet/`) to scan the Parquet data in `processed-zone/`.
 - Updates Glue Data Catalog with the Parquet table (optimized for Athena queries).
 
 ---
@@ -112,7 +112,8 @@ graph TD
 ## Lambda Function for Athena Query
 
 - Deploy `lambda/athena-query-runner/lambda_function.py` on AWS Lambda.
-- Set IAM role to allow Athena and S3 access.
+- Lambda function has an execution role with Athena, S3, and Glue access permissions.
+- n8n user has permission to invoke the Lambda function.
 - Lambda receives SQL query, database, and output location, runs Athena query, and returns result metadata.
 
 See setup steps in `lambda/docs/lambda_setup.md`.
@@ -125,8 +126,9 @@ See setup steps in `lambda/docs/lambda_setup.md`.
 
 ### AI Node 1: Stakeholder Request → SQL
 
-- Receives a natural language request (e.g., "Show me last week's sales by region").
-- Converts it to a valid SQL query for Athena, using full schema context.
+- Receives a natural language request (e.g., "Show me sales by gender for this month").
+- Converts it to a valid SQL query for Athena, using the retail sales schema context.
+- Uses the transaction data schema: transaction_id, date, customer_id, gender, age, product_category, quantity, price_per_unit, total_amount.
 
 ### Lambda Node: Execute Athena Query
 

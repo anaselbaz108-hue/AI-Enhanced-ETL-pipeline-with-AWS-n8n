@@ -33,9 +33,9 @@ Form Trigger → AI SQL Generation → Lambda Athena Query → AI Insight Summar
 - **Stakeholder Email** (Email, Required): Recipient for insights
 
 **Example Requests**:
-- "Show me last week's sales by region"
-- "What are our top 5 products by revenue this quarter?"
-- "Customer retention analysis for the past 6 months"
+- "Show me sales by gender for this month"
+- "What are our top 5 product categories by revenue this quarter?"
+- "Average customer age by product category"
 
 ### 2. AI: Request → SQL Node
 
@@ -49,10 +49,10 @@ Prompt Template:
 Convert this stakeholder request to a valid SQL query for Amazon Athena. Use the database schema provided and ensure the query is optimized for Parquet data.
 
 Schema Context:
-- Database: insights_db
-- Main table: sales_data
-- Columns: date, region, product_category, sales_amount, customer_id, order_id
-- Partitioned by: year, month
+- Database: retail-sales-db
+- Main table: processed_zone
+- Columns: transaction_id, date, customer_id, gender, age, product_category, quantity, price_per_unit, total_amount
+- Partitioned by: year, month, day
 
 Stakeholder Request: {{$node['Stakeholder Request Form'].json['request_text']}}
 
@@ -78,8 +78,8 @@ Return only the SQL query without explanations.
   "functionName": "athena-query-runner",
   "payload": {
     "sql_query": "={{$node['AI: Request → SQL'].json['choices'][0]['message']['content']}}",
-    "database": "insights_db",
-    "output_location": "s3://athena-results-bucket/queries/"
+    "database": "retail-sales-db",
+    "output_location": "s3://retailsalespipelinebucket/athena-results/"
   }
 }
 ```
@@ -149,9 +149,29 @@ Email Template:
 
 ### AWS Credentials
 
-1. Create IAM user with Lambda invoke permissions
-2. Generate access key and secret
+1. Create IAM user for n8n with Lambda invoke permissions:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction"
+            ],
+            "Resource": [
+                "arn:aws:lambda:*:*:function:athena-query-runner"
+            ]
+        }
+    ]
+}
+```
+
+2. Generate access key and secret for the n8n user
 3. Add to n8n credentials as "AWS"
+
+**Note**: The Lambda function itself has a separate execution role with S3, Athena, and Glue permissions. The n8n user only needs permission to invoke the Lambda function.
 
 ### Gmail OAuth2
 
@@ -167,11 +187,11 @@ Email Template:
 
 1. **Simple Query Test**
    - Request: "Total sales for this month"
-   - Expected: SQL with current month filter
+   - Expected: SQL with current month filter using retail sales schema
 
 2. **Complex Analysis Test**
-   - Request: "Top performing regions with growth rate"
-   - Expected: Multi-table join with calculations
+   - Request: "Gender-based purchasing patterns by product category"
+   - Expected: SQL with aggregations on gender and product_category
 
 3. **Error Handling Test**
    - Request: Invalid/ambiguous request
@@ -191,7 +211,7 @@ Create test webhook to simulate form submissions:
 
 ```json
 {
-  "request_text": "Show me sales by region for last quarter",
+  "request_text": "Show me sales by product category for last month",
   "stakeholder_email": "test@example.com"
 }
 ```
