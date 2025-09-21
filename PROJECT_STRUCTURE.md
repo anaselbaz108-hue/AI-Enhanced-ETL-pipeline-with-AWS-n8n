@@ -57,18 +57,21 @@ This directory contains the complete folder structure for the **Athena Insights 
 ## Architecture Flow
 
 ```
-Raw Data (S3) → Raw Crawler → Glue ETL Job → Parquet Data (S3) → Parquet Crawler → Athena Table
-                                                                                          ↓
+Raw Data (S3 raw-zone/) → Raw Crawler → Glue ETL Job → Parquet Data (S3 processed-zone/) → Parquet Crawler → Athena Table
+                                                                                                        ↓
 Gmail Insights ← AI Summary ← Lambda Query ← AI SQL Generation ← n8n Form ← Stakeholder Request
+               ↑                ↑                                ↑
+          AI Node 2      Lambda Function              n8n User (invoke permission)
+                          (Execution Role)
 ```
 
 ## Key Features
 
-- **Automated ETL Pipeline**: Raw data processing to Parquet format
-- **AI-Powered SQL Generation**: Natural language to SQL conversion
-- **Serverless Query Execution**: AWS Lambda + Athena integration
-- **Intelligent Insights**: AI-generated business summaries
-- **Automated Notifications**: Email delivery of insights
+- **Automated ETL Pipeline**: Raw retail sales data processing to Parquet format with partitioning
+- **AI-Powered SQL Generation**: Natural language to SQL conversion using transaction schema
+- **Serverless Query Execution**: AWS Lambda + Athena integration with proper IAM role separation
+- **Intelligent Insights**: AI-generated business summaries from transaction data
+- **Automated Notifications**: Email delivery of insights to stakeholders
 
 ## Prerequisites
 

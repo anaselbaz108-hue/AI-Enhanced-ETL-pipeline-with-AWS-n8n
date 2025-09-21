@@ -21,9 +21,9 @@ The job accepts the following parameters:
 
 | Parameter | Description | Example Value |
 |-----------|-------------|---------------|
-| `source_bucket` | S3 bucket containing raw data | `my-raw-data-bucket` |
-| `target_bucket` | S3 bucket for processed Parquet data | `my-processed-data-bucket` |
-| `database_name` | Glue catalog database name | `raw_insights_db` |
+| `source_bucket` | S3 bucket containing raw data | `retailsalespipelinebucket` |
+| `target_bucket` | S3 bucket for processed Parquet data | `retailsalespipelinebucket` |
+| `database_name` | Glue catalog database name | `retail-sales-db` |
 
 ### IAM Role Requirements
 
@@ -42,10 +42,8 @@ The job accepts the following parameters:
                 "s3:DeleteObject"
             ],
             "Resource": [
-                "arn:aws:s3:::my-raw-data-bucket",
-                "arn:aws:s3:::my-raw-data-bucket/*",
-                "arn:aws:s3:::my-processed-data-bucket",
-                "arn:aws:s3:::my-processed-data-bucket/*"
+                "arn:aws:s3:::retailsalespipelinebucket",
+                "arn:aws:s3:::retailsalespipelinebucket/*"
             ]
         },
         {
@@ -66,19 +64,19 @@ The job accepts the following parameters:
 The job performs the following transformations:
 
 1. **Data Cleaning**
-   - Remove duplicate records
-   - Filter out invalid/null values
-   - Standardize data formats
+   - Remove duplicate records based on transaction_id
+   - Filter out invalid/null values for key columns (transaction_id, date, customer_id, product_category, total_amount)
+   - Clean negative or zero values for quantity, price_per_unit, and total_amount
 
 2. **Data Enrichment**
-   - Add processing timestamp
-   - Extract date components for partitioning
-   - Standardize categorical values
+   - Extract date components (year, month, day) for partitioning
+   - Standardize column names (trim and lowercase)
+   - Convert date column to proper date format
 
 3. **Optimization**
-   - Convert to Parquet format
-   - Apply appropriate compression (Snappy)
-   - Partition by year and month
+   - Convert to Parquet format with Snappy compression
+   - Partition by year, month, and day for optimal query performance
+   - Write to processed-zone folder in S3
 
 ## Deployment
 
@@ -91,9 +89,9 @@ aws glue create-job \
     --role arn:aws:iam::YOUR_ACCOUNT_ID:role/GlueServiceRole \
     --command ScriptLocation=s3://your-scripts-bucket/job_script.py,Name=glueetl \
     --default-arguments '{
-        "--source_bucket":"my-raw-data-bucket",
-        "--target_bucket":"my-processed-data-bucket",
-        "--database_name":"raw_insights_db"
+        "--source_bucket":"retailsalespipelinebucket",
+        "--target_bucket":"retailsalespipelinebucket",
+        "--database_name":"retail-sales-db"
     }' \
     --glue-version 4.0 \
     --max-capacity 10
@@ -113,9 +111,9 @@ resource "aws_glue_job" "sales_data_etl" {
   }
 
   default_arguments = {
-    "--source_bucket"  = "my-raw-data-bucket"
-    "--target_bucket"  = "my-processed-data-bucket"
-    "--database_name"  = "raw_insights_db"
+    "--source_bucket"  = "retailsalespipelinebucket"
+    "--target_bucket"  = "retailsalespipelinebucket"
+    "--database_name"  = "retail-sales-db"
   }
 
   max_capacity = 10

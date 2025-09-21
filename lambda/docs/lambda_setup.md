@@ -5,10 +5,32 @@
 - AWS CLI configured with appropriate credentials
 - AWS Lambda execution role with required permissions
 - S3 bucket for Athena query results
+- n8n user with Lambda invoke permissions
 
-## IAM Role Configuration
+## IAM Role Structure
 
-### Required Policies
+### n8n User Permissions (for invoking Lambda)
+
+The n8n user needs permission to invoke the Lambda function:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "lambda:InvokeFunction"
+            ],
+            "Resource": [
+                "arn:aws:lambda:*:*:function:athena-query-runner"
+            ]
+        }
+    ]
+}
+```
+
+### Lambda Execution Role (for AWS resources access)
 
 The Lambda execution role needs the following permissions:
 
@@ -43,7 +65,7 @@ The Lambda execution role needs the following permissions:
                 "s3:DeleteObject"
             ],
             "Resource": [
-                "arn:aws:s3:::your-athena-results-bucket/*"
+                "arn:aws:s3:::retailsalespipelinebucket/*"
             ]
         },
         {
@@ -52,7 +74,7 @@ The Lambda execution role needs the following permissions:
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws:s3:::your-athena-results-bucket"
+                "arn:aws:s3:::retailsalespipelinebucket"
             ]
         },
         {
@@ -95,8 +117,8 @@ aws lambda update-function-configuration \
     --function-name athena-query-runner \
     --environment Variables='{
         "ATHENA_WORKGROUP":"primary",
-        "DEFAULT_DATABASE":"insights_db",
-        "RESULTS_BUCKET":"your-athena-results-bucket"
+        "DEFAULT_DATABASE":"retail-sales-db",
+        "RESULTS_BUCKET":"retailsalespipelinebucket"
     }'
 ```
 
