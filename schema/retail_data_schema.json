@@ -1,0 +1,179 @@
+{
+  "database_name": "retail_analytics_db",
+  "tables": {
+    "raw_sales_data": {
+      "description": "Raw sales transaction data from various sources",
+      "columns": [
+        {
+          "name": "transaction_id",
+          "type": "string",
+          "description": "Unique identifier for each transaction"
+        },
+        {
+          "name": "customer_id",
+          "type": "string",
+          "description": "Unique identifier for each customer"
+        },
+        {
+          "name": "product_id",
+          "type": "string",
+          "description": "Unique identifier for each product"
+        },
+        {
+          "name": "product_name",
+          "type": "string",
+          "description": "Name of the product"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "Product category"
+        },
+        {
+          "name": "quantity",
+          "type": "int",
+          "description": "Number of items purchased"
+        },
+        {
+          "name": "unit_price",
+          "type": "decimal(10,2)",
+          "description": "Price per unit"
+        },
+        {
+          "name": "total_amount",
+          "type": "decimal(10,2)",
+          "description": "Total transaction amount"
+        },
+        {
+          "name": "transaction_date",
+          "type": "timestamp",
+          "description": "Date and time of transaction"
+        },
+        {
+          "name": "store_id",
+          "type": "string",
+          "description": "Store where transaction occurred"
+        },
+        {
+          "name": "sales_rep_id",
+          "type": "string",
+          "description": "Sales representative identifier"
+        },
+        {
+          "name": "payment_method",
+          "type": "string",
+          "description": "Method of payment (cash, card, etc.)"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "year",
+          "type": "string",
+          "description": "Partition by year"
+        },
+        {
+          "name": "month",
+          "type": "string",
+          "description": "Partition by month"
+        },
+        {
+          "name": "day",
+          "type": "string",
+          "description": "Partition by day"
+        }
+      ]
+    },
+    "cleaned_sales_data": {
+      "description": "Cleaned and processed sales data in Parquet format",
+      "columns": [
+        {
+          "name": "transaction_id",
+          "type": "string",
+          "description": "Unique identifier for each transaction"
+        },
+        {
+          "name": "customer_id",
+          "type": "string",
+          "description": "Unique identifier for each customer"
+        },
+        {
+          "name": "product_id",
+          "type": "string",
+          "description": "Unique identifier for each product"
+        },
+        {
+          "name": "product_name",
+          "type": "string",
+          "description": "Cleaned product name"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "Standardized product category"
+        },
+        {
+          "name": "quantity",
+          "type": "int",
+          "description": "Number of items purchased"
+        },
+        {
+          "name": "unit_price",
+          "type": "decimal(10,2)",
+          "description": "Price per unit"
+        },
+        {
+          "name": "total_amount",
+          "type": "decimal(10,2)",
+          "description": "Total transaction amount"
+        },
+        {
+          "name": "transaction_timestamp",
+          "type": "timestamp",
+          "description": "Standardized transaction timestamp"
+        },
+        {
+          "name": "store_id",
+          "type": "string",
+          "description": "Store identifier"
+        },
+        {
+          "name": "sales_rep_id",
+          "type": "string",
+          "description": "Sales representative identifier"
+        },
+        {
+          "name": "payment_method",
+          "type": "string",
+          "description": "Standardized payment method"
+        },
+        {
+          "name": "revenue_category",
+          "type": "string",
+          "description": "Revenue category (high/medium/low)"
+        },
+        {
+          "name": "data_quality_score",
+          "type": "decimal(3,2)",
+          "description": "Data quality score (0.0-1.0)"
+        }
+      ],
+      "partitions": [
+        {
+          "name": "year",
+          "type": "string",
+          "description": "Partition by year"
+        },
+        {
+          "name": "month",
+          "type": "string",
+          "description": "Partition by month"
+        },
+        {
+          "name": "category",
+          "type": "string",
+          "description": "Partition by product category"
+        }
+      ]
+    }
+  }
+}

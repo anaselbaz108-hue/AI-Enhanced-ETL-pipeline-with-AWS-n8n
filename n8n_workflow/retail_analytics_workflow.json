@@ -1,0 +1,263 @@
+{
+  "name": "AI-Enhanced Retail Analytics Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "bodySize": "large"
+        }
+      },
+      "id": "webhook-start",
+      "name": "Webhook Start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "retail-analytics-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and validate input parameters\nconst userRequest = $json.user_request || '';\nconst queryType = $json.query_type || 'custom';\nconst dateRange = $json.date_range || {};\nconst filters = $json.filters || {};\n\n// Validate required fields\nif (!userRequest && queryType === 'custom') {\n  throw new Error('User request is required for custom queries');\n}\n\n// Prepare output\nreturn {\n  user_request: userRequest,\n  query_type: queryType,\n  date_range: dateRange,\n  filters: filters,\n  timestamp: new Date().toISOString(),\n  request_id: Math.random().toString(36).substr(2, 9)\n};"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.query_type}}",
+              "operation": "equal",
+              "value2": "custom"
+            }
+          ]
+        }
+      },
+      "id": "check-query-type",
+      "name": "Check Query Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// AWS Lambda - AI Query Processor\nconst AWS = require('aws-sdk');\nconst lambda = new AWS.Lambda({ region: 'us-east-1' });\n\nconst params = {\n  FunctionName: 'retail-ai-query-processor',\n  Payload: JSON.stringify({\n    operation: 'generate_sql',\n    user_request: items[0].json.user_request,\n    schema_info: {\n      columns: [\n        'transaction_id', 'customer_id', 'product_id', 'product_name',\n        'category', 'quantity', 'unit_price', 'total_amount',\n        'transaction_timestamp', 'store_id', 'sales_rep_id',\n        'payment_method', 'revenue_category', 'data_quality_score'\n      ]\n    }\n  })\n};\n\nconst response = await lambda.invoke(params).promise();\nconst result = JSON.parse(response.Payload);\n\nreturn {\n  sql_query: JSON.parse(result.body).sql_query,\n  user_request: items[0].json.user_request,\n  request_id: items[0].json.request_id\n};"
+      },
+      "id": "generate-sql-with-ai",
+      "name": "Generate SQL with AI",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate predefined SQL based on query type\nconst queryType = $json.query_type;\nconst dateRange = $json.date_range;\nconst filters = $json.filters;\n\nlet sqlQuery = '';\n\nswitch (queryType) {\n  case 'daily_sales_summary':\n    sqlQuery = `\n      SELECT \n        DATE(transaction_timestamp) as sale_date,\n        category,\n        COUNT(*) as transaction_count,\n        SUM(total_amount) as total_revenue,\n        AVG(total_amount) as avg_transaction_value\n      FROM cleaned_sales_data\n      WHERE 1=1\n    `;\n    if (dateRange.start_date) {\n      sqlQuery += ` AND DATE(transaction_timestamp) >= '${dateRange.start_date}'`;\n    }\n    if (dateRange.end_date) {\n      sqlQuery += ` AND DATE(transaction_timestamp) <= '${dateRange.end_date}'`;\n    }\n    sqlQuery += ' GROUP BY DATE(transaction_timestamp), category ORDER BY sale_date DESC';\n    break;\n    \n  case 'top_products':\n    const limit = filters.limit || 10;\n    sqlQuery = `\n      SELECT \n        product_name,\n        SUM(total_amount) as total_revenue,\n        SUM(quantity) as total_sold\n      FROM cleaned_sales_data\n      WHERE 1=1\n    `;\n    if (dateRange.start_date) {\n      sqlQuery += ` AND DATE(transaction_timestamp) >= '${dateRange.start_date}'`;\n    }\n    sqlQuery += ` GROUP BY product_name ORDER BY total_revenue DESC LIMIT ${limit}`;\n    break;\n    \n  case 'revenue_trends':\n    sqlQuery = `\n      SELECT \n        year, month,\n        SUM(total_amount) as monthly_revenue,\n        COUNT(*) as transaction_count\n      FROM cleaned_sales_data\n      WHERE 1=1\n    `;\n    if (dateRange.start_date) {\n      sqlQuery += ` AND DATE(transaction_timestamp) >= '${dateRange.start_date}'`;\n    }\n    sqlQuery += ' GROUP BY year, month ORDER BY year DESC, month DESC';\n    break;\n    \n  default:\n    sqlQuery = 'SELECT COUNT(*) as total_transactions FROM cleaned_sales_data';\n}\n\nreturn {\n  sql_query: sqlQuery,\n  query_type: queryType,\n  request_id: $json.request_id\n};"
+      },
+      "id": "generate-predefined-sql",
+      "name": "Generate Predefined SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// AWS Lambda - Athena Query Executor\nconst AWS = require('aws-sdk');\nconst lambda = new AWS.Lambda({ region: 'us-east-1' });\n\nconst sqlQuery = items[0].json.sql_query;\nconst requestId = items[0].json.request_id;\n\nconst params = {\n  FunctionName: 'retail-athena-query-executor',\n  Payload: JSON.stringify({\n    query_type: 'custom',\n    custom_query: sqlQuery\n  })\n};\n\nconst response = await lambda.invoke(params).promise();\nconst result = JSON.parse(response.Payload);\nconst body = JSON.parse(result.body);\n\nreturn {\n  execution_id: body.execution_id,\n  status: body.status,\n  results: body.results || [],\n  error: body.error,\n  sql_query: sqlQuery,\n  request_id: requestId\n};"
+      },
+      "id": "execute-athena-query",
+      "name": "Execute Athena Query",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "operation": "equal",\n              "value2": "SUCCEEDED"
+            }
+          ]
+        }
+      },
+      "id": "check-query-success",
+      "name": "Check Query Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// AWS Lambda - AI Result Summarizer\nconst AWS = require('aws-sdk');\nconst lambda = new AWS.Lambda({ region: 'us-east-1' });\n\nconst queryResults = items[0].json.results;\nconst userRequest = items[0].json.user_request || 'Data analysis request';\nconst requestId = items[0].json.request_id;\n\nconst params = {\n  FunctionName: 'retail-ai-query-processor',\n  Payload: JSON.stringify({\n    operation: 'summarize_results',\n    query_results: queryResults,\n    user_request: userRequest\n  })\n};\n\nconst response = await lambda.invoke(params).promise();\nconst result = JSON.parse(response.Payload);\nconst body = JSON.parse(result.body);\n\nreturn {\n  summary: body.summary,\n  record_count: body.record_count,\n  user_request: userRequest,\n  request_id: requestId,\n  results: queryResults.slice(0, 10) // Include first 10 records\n};"
+      },
+      "id": "generate-ai-summary",
+      "name": "Generate AI Summary",
+      "type": "n8n-nodes-base.function",\n      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "analytics@yourcompany.com",
+        "toEmail": "={{$json.recipient_email || 'stakeholder@yourcompany.com'}}",
+        "subject": "Retail Analytics Report - {{$json.user_request}}",
+        "emailFormat": "html",
+        "message": "<h2>Retail Analytics Report</h2>\\n<p><strong>Request:</strong> {{$json.user_request}}</p>\\n<p><strong>Generated on:</strong> {{new Date().toLocaleString()}}</p>\\n\\n<h3>Executive Summary</h3>\\n<p>{{$json.summary}}</p>\\n\\n<h3>Key Metrics</h3>\\n<ul>\\n<li>Total Records Analyzed: {{$json.record_count}}</li>\\n<li>Query Execution ID: {{$json.execution_id}}</li>\\n</ul>\\n\\n<h3>Sample Data (Top 10 Records)</h3>\\n<table border='1' style='border-collapse: collapse;'>\\n<thead>\\n<tr>\\n{{#each $json.results.[0]}}\\n<th style='padding: 8px; background-color: #f2f2f2;'>{{@key}}</th>\\n{{/each}}\\n</tr>\\n</thead>\\n<tbody>\\n{{#each $json.results}}\\n<tr>\\n{{#each this}}\\n<td style='padding: 8px;'>{{this}}</td>\\n{{/each}}\\n</tr>\\n{{/each}}\\n</tbody>\\n</table>\\n\\n<p><em>This is an automated report generated by the AI-Enhanced Retail Analytics Pipeline.</em></p>",
+        "options": {}\n      },
+      "id": "send-email-report",
+      "name": "Send Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"success\",\n  \"message\": \"Analytics report generated and sent successfully\",\n  \"request_id\": \"{{$json.request_id}}\",\n  \"summary\": \"{{$json.summary}}\",\n  \"record_count\": {{$json.record_count}},\n  \"timestamp\": \"{{new Date().toISOString()}}\"\n}"
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"error\",\n  \"message\": \"Query execution failed\",\n  \"error\": \"{{$json.error}}\",\n  \"request_id\": \"{{$json.request_id}}\",\n  \"timestamp\": \"{{new Date().toISOString()}}\"\n}",
+        "responseCode": 500
+      },
+      "id": "error-response",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Start": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Check Query Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Query Type": {
+      "main": [
+        [
+          {
+            "node": "Generate SQL with AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Predefined SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate SQL with AI": {
+      "main": [
+        [
+          {
+            "node": "Execute Athena Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Predefined SQL": {
+      "main": [
+        [
+          {
+            "node": "Execute Athena Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Athena Query": {
+      "main": [
+        [
+          {
+            "node": "Check Query Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Query Success": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Report": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "1"
+}
